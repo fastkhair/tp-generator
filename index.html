@@ -665,51 +665,23 @@ body {
 }
 
 
-/* ─── MODAL KIRIM SALINAN ─── */
-.modal-overlay {
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,0.45);
-  z-index: 9998;
-  display: flex; align-items: center; justify-content: center;
-  opacity: 0; pointer-events: none;
-  transition: opacity 0.2s;
+
+/* ─── AUTO KIRIM STATUS ─── */
+.auto-status {
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.3s;
 }
-.modal-overlay.show { opacity: 1; pointer-events: all; }
-.modal-box {
-  background: var(--surface);
-  border-radius: 14px;
-  padding: 28px 32px;
-  width: 100%; max-width: 480px;
-  box-shadow: 0 24px 64px rgba(0,0,0,0.25);
-  transform: translateY(12px);
-  transition: transform 0.2s;
-}
-.modal-overlay.show .modal-box { transform: none; }
-.modal-title {
-  font-family: 'DM Serif Display', serif;
-  font-size: 18px; color: var(--accent);
-  margin-bottom: 4px;
-}
-.modal-sub { font-size: 12px; color: var(--text3); margin-bottom: 20px; }
-.modal-status {
-  padding: 10px 14px; border-radius: 8px;
-  font-size: 13px; margin-top: 14px;
-  display: none;
-}
-.modal-status.ok  { background: #E8F5E9; color: #2E7D32; border: 1px solid #A5D6A7; }
-.modal-status.err { background: #FFEBEE; color: #B71C1C; border: 1px solid #EF9A9A; }
-.modal-status.loading { background: #E3F2FD; color: #1565C0; border: 1px solid #90CAF9; }
-.script-url-note {
-  font-size: 11px; color: var(--text3);
-  background: var(--surface2); border-radius: 6px;
-  padding: 8px 10px; margin-bottom: 14px; line-height: 1.6;
-}
-.script-url-note code {
-  font-size: 10px; background: #fff;
-  padding: 1px 5px; border-radius: 4px;
-  border: 1px solid var(--border);
-  word-break: break-all;
-}
+.auto-status.loading { background: #E3F2FD; color: #1565C0; border: 1px solid #90CAF9; }
+.auto-status.ok      { background: #E8F5E9; color: #2E7D32; border: 1px solid #A5D6A7; }
+.auto-status.err     { background: #FFEBEE; color: #B71C1C; border: 1px solid #EF9A9A; }
+.auto-status.warn    { background: #FFF8E1; color: #F57F17; border: 1px solid #FFD54F; }
 </style>
 </head>
 <body>
@@ -1021,11 +993,12 @@ body {
       <div class="page-desc">Periksa hasil TP sebelum dicetak. Tekan tombol Cetak untuk mencetak atau simpan sebagai PDF.</div>
     </div>
 
-    <div class="action-bar" style="border-top:none;padding-top:0;margin-bottom:16px">
+    <div id="autoKirimStatus" class="auto-status loading no-print">⏳ Menyiapkan pengiriman rekap ke koordinator...</div>
+
+    <div class="action-bar no-print" style="border-top:none;padding-top:0;margin-bottom:16px">
       <button class="btn" onclick="showPage(2)">← Edit TP</button>
       <div class="spacer"></div>
       <button class="btn btn-print" onclick="window.print()">🖨️ Cetak / Simpan PDF</button>
-      <button class="btn" onclick="bukaModalKirim()" style="background:#E8F5E9;border-color:#81C784;color:#2E7D32;font-weight:700">📤 Kirim Salinan</button>
     </div>
 
     <!-- PRINT AREA -->
@@ -1095,26 +1068,6 @@ body {
     </div>
   </div>
 
-
-<!-- ══════════ MODAL KIRIM SALINAN ══════════ -->
-<div class="modal-overlay" id="modalKirim">
-  <div class="modal-box">
-    <div class="modal-title">📤 Kirim Rekap TP ke Koordinator</div>
-    <div class="modal-sub">Rekap TP akan dikirim ke email koordinator yayasan secara otomatis.</div>
-
-    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:13px;color:var(--text2)">
-      <div style="margin-bottom:4px">📧 <strong>Dikirim ke:</strong> manajemen.fastkhair@gmail.com</div>
-      <div id="previewPengirim" style="font-size:12px;color:var(--text3)">Memuat data...</div>
-    </div>
-
-    <div style="display:flex;gap:8px;justify-content:flex-end">
-      <button class="btn" onclick="tutupModal()">Batal</button>
-      <button class="btn btn-primary" id="btnKirim" onclick="kirimSalinan()">📤 Kirim Sekarang</button>
-    </div>
-
-    <div class="modal-status" id="modalStatus"></div>
-  </div>
-</div>
 
 </main>
 </div>
@@ -2221,6 +2174,44 @@ function goStep3() {
   if (tpList[1].length + tpList[2].length === 0) { showToast('⚠️ Tambahkan minimal 1 Tujuan Pembelajaran.'); return; }
   renderResult();
   showPage(3);
+  // Auto-kirim ke email koordinator saat pratinjau dibuka
+  setTimeout(() => autoKirimEmail(), 800);
+}
+
+async function autoKirimEmail() {
+  const indikator = document.getElementById('autoKirimStatus');
+  if (!indikator) return;
+
+  // Cek apakah URL script sudah dikonfigurasi
+  const scriptUrl = (typeof SCRIPT_URL !== 'undefined' && SCRIPT_URL && !SCRIPT_URL.includes('https://script.google.com/macros/s/AKfycbyayCByKI4H4QVyLMtB5mPypK-6FaugOJ2c7E9H7BS4R02e8KIjz6WQ6043OsckNzMcEg/exec'))
+    ? SCRIPT_URL
+    : (localStorage.getItem('fk_script_url') || '');
+
+  if (!scriptUrl || scriptUrl.includes('GANTI') || !scriptUrl.startsWith('https://script.google.com')) {
+    indikator.innerHTML = '⚠️ Belum terhubung ke server — hubungi koordinator.';
+    indikator.className = 'auto-status warn';
+    return;
+  }
+
+  const payload = kumpulkanDataTP();
+  if (!payload) return;
+
+  indikator.innerHTML = '⏳ Mengirim rekap ke koordinator...';
+  indikator.className = 'auto-status loading';
+
+  try {
+    await fetch(scriptUrl, {
+      method : 'POST',
+      mode   : 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body   : JSON.stringify(payload)
+    });
+    indikator.innerHTML = '✅ Rekap TP terkirim otomatis ke koordinator yayasan.';
+    indikator.className = 'auto-status ok';
+  } catch (err) {
+    indikator.innerHTML = '❌ Gagal kirim otomatis — periksa koneksi internet.';
+    indikator.className = 'auto-status err';
+  }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -2397,7 +2388,7 @@ function doLogin() {
 // KOORDINATOR: Isi URL Apps Script di bawah ini (sekali saja)
 // Cara dapat URL: ikuti panduan-setup-drive-email.html
 // ═══════════════════════════════════════════════════════
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyayCByKI4H4QVyLMtB5mPypK-6FaugOJ2c7E9H7BS4R02e8KIjz6WQ6043OsckNzMcEg/exec';
+const SCRIPT_URL = 'GANTI_DENGAN_URL_APPS_SCRIPT_ANDA';
 const EMAIL_TUJUAN = 'manajemen.fastkhair@gmail.com';
 
 
@@ -2406,70 +2397,7 @@ const EMAIL_TUJUAN = 'manajemen.fastkhair@gmail.com';
 // KIRIM SALINAN → GOOGLE DRIVE + EMAIL
 // ═══════════════════════════════════════════════════════
 
-function bukaModalKirim() {
-  // Isi preview identitas pengirim
-  const guru    = document.getElementById('f_guru')?.value || '—';
-  const sekolah = document.getElementById('f_sekolah')?.value || '—';
-  const mapel   = document.getElementById('f_mapel')?.value || '—';
-  const total   = (tpList[1]?.length||0) + (tpList[2]?.length||0);
-  document.getElementById('previewPengirim').innerHTML =
-    `👤 ${guru} &nbsp;·&nbsp; ${sekolah} &nbsp;·&nbsp; ${mapel} &nbsp;·&nbsp; <strong>${total} TP</strong>`;
-  document.getElementById('modalStatus').style.display = 'none';
-  document.getElementById('modalStatus').className = 'modal-status';
-  document.getElementById('btnKirim').disabled = false;
-  document.getElementById('modalKirim').classList.add('show');
-}
 
-function tutupModal() {
-  document.getElementById('modalKirim').classList.remove('show');
-}
-
-document.addEventListener('click', e => {
-  const overlay = document.getElementById('modalKirim');
-  if (e.target === overlay) tutupModal();
-});
-
-async function kirimSalinan() {
-  const statusEl = document.getElementById('modalStatus');
-  const btnEl    = document.getElementById('btnKirim');
-
-  // Cek URL — dari konstanta atau localStorage (jika pernah diisi manual)
-  const scriptUrl = (typeof SCRIPT_URL !== 'undefined' && SCRIPT_URL && !SCRIPT_URL.includes('GANTI'))
-    ? SCRIPT_URL
-    : (localStorage.getItem('fk_script_url') || '');
-
-  if (!scriptUrl || scriptUrl.includes('GANTI') || !scriptUrl.startsWith('https://script.google.com')) {
-    tampilStatus('err', '⚠️ Aplikasi belum dikonfigurasi. Hubungi koordinator untuk mengaktifkan fitur ini.');
-    return;
-  }
-
-  const payload = kumpulkanDataTP();
-  if (!payload) return;
-
-  btnEl.disabled = true;
-  tampilStatus('loading', '⏳ Mengirim rekap ke koordinator...');
-
-  try {
-    await fetch(scriptUrl, {
-      method : 'POST',
-      mode   : 'no-cors',
-      headers: { 'Content-Type': 'application/json' },
-      body   : JSON.stringify(payload)
-    });
-    tampilStatus('ok', '✅ Rekap TP berhasil dikirim! Email notifikasi sudah masuk ke koordinator yayasan.');
-    setTimeout(tutupModal, 3000);
-  } catch (err) {
-    tampilStatus('err', '❌ Gagal mengirim. Periksa koneksi internet Anda.<br><small>' + err.message + '</small>');
-    btnEl.disabled = false;
-  }
-}
-
-function tampilStatus(type, msg) {
-  const el = document.getElementById('modalStatus');
-  el.className = 'modal-status ' + type;
-  el.innerHTML = msg;
-  el.style.display = 'block';
-}
 
 function kumpulkanDataTP() {
   const v = id => { const el = document.getElementById(id); return el ? el.value || el.textContent || '' : ''; };
@@ -2511,7 +2439,7 @@ function kumpulkanDataTP() {
 
   return {
     timestamp : new Date().toLocaleString('id-ID'),
-    sekolah, guru, wakasek, tapel, fase, kelas, mapel,
+    sekolah, guru, wakasek, kepsek, tapel, fase, kelas, mapel,
     alokasi   : `${jp} JP/minggu · Sem.1: ${w1} mgg · Sem.2: ${w2} mgg`,
     elemen_cp : selectedElemen.join(', '),
     total_tp  : semua_tp.length,
